@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
+const { promisify } = require('util');
+const execAsync = promisify(exec);
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
@@ -151,15 +153,12 @@ function prompt(question) {
   });
 }
 
-function cloneAndGetCommits(repo, org, authors, tempDir) {
+async function cloneAndGetCommits(repo, org, authors, tempDir) {
   const repoPath = path.join(tempDir, repo.name);
   const cloneUrl = `https://github.com/${org}/${repo.name}.git`;
 
   try {
-    execSync(`git clone --quiet --filter=blob:none "${cloneUrl}" "${repoPath}"`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
+    await execAsync(`git clone --quiet --filter=blob:none "${cloneUrl}" "${repoPath}"`);
   } catch (error) {
     return [];
   }
@@ -168,10 +167,11 @@ function cloneAndGetCommits(repo, org, authors, tempDir) {
 
   let commits;
   try {
-    commits = execSync(
-      `git log --all ${authorFilters} --format="%H|%s|%aI" --date=iso`,
-      { cwd: repoPath, encoding: 'utf-8' }
-    ).trim();
+    const { stdout } = await execAsync(
+      `git log --all ${authorFilters} --format="%H<|>%s<|>%aI" --date=iso`,
+      { cwd: repoPath, maxBuffer: 50 * 1024 * 1024 }
+    );
+    commits = stdout.trim();
   } catch (error) {
     fs.rmSync(repoPath, { recursive: true, force: true });
     return [];
@@ -186,8 +186,12 @@ function cloneAndGetCommits(repo, org, authors, tempDir) {
   const result = [];
 
   for (const line of commitLines) {
-    const [hash, message, date] = line.split('|');
-    if (!hash) continue;
+    const parts = line.split('<|>');
+    if (parts.length < 3) continue;
+
+    const hash = parts[0];
+    const message = parts[1];
+    const date = parts[2];
 
     result.push({
       hash,
@@ -296,25 +300,52 @@ async function main() {
 
   writeHeader();
 
-  console.log('\x1B[1m커밋 수집 중...\x1B[0m\n');
+  const total = repos.length;
 
-  for (let i = 0; i < repos.length; i++) {
-    const repo = repos[i];
-    const progress = `[${String(i + 1).padStart(String(repos.length).length, ' ')}/${repos.length}]`;
+  for (const repo of repos) {
+    console.log(`  \x1B[90m○ ${repo.name}\x1B[0m`);
+  }
+  console.log(`\x1B[90m[0/${total}]\x1B[0m`);
 
+  let completed = 0;
+
+  const render = () => {
+    process.stdout.write(`\x1B[${total + 1}A`);
+    for (let i = 0; i < total; i++) {
+      clearLine();
+      const repo = repos[i];
+      const result = repoResults[i];
+      if (result === undefined) {
+        console.log(`  \x1B[90m○ ${repo.name}\x1B[0m`);
+      } else if (result > 0) {
+        console.log(`  \x1B[32m● ${repo.name} → ${result}개\x1B[0m`);
+      } else {
+        console.log(`  \x1B[90m● ${repo.name}\x1B[0m`);
+      }
+    }
     clearLine();
-    process.stdout.write(`${progress} \x1B[90m${repo.name}\x1B[0m`);
+    console.log(`\x1B[90m[${completed}/${total}]\x1B[0m`);
+  };
 
-    const commits = cloneAndGetCommits(repo, org, authors, tempDir);
+  const repoResults = new Array(total).fill(undefined);
 
+  const results = await Promise.all(
+    repos.map(async (repo, index) => {
+      const commits = await cloneAndGetCommits(repo, org, authors, tempDir);
+      completed++;
+      repoResults[index] = commits.length;
+      render();
+      return { repo, commits };
+    })
+  );
+
+  for (const { repo, commits } of results) {
     if (commits.length > 0) {
       allCommits.push(...commits);
-      writeAllCommits();
-
-      clearLine();
-      console.log(`${progress} \x1B[32m${repo.name}\x1B[0m → ${commits.length}개 커밋`);
     }
   }
+
+  writeAllCommits();
 
   fs.rmSync(tempDir, { recursive: true, force: true });
 
