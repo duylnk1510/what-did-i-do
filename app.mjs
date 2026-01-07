@@ -9,7 +9,7 @@ import { homedir } from 'os';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 
 const execAsync = promisify(exec);
-const CONCURRENCY_LIMIT = 3;
+const CONCURRENCY_LIMIT = 10;
 
 const COLORS = {
   reset: '\x1B[0m',
@@ -576,13 +576,17 @@ function formatCommitsForPrompt(yearMonth, commits) {
 async function generateResumeSection(claudePath, yearMonth, commits, cwd) {
   const commitsText = formatCommitsForPrompt(yearMonth, commits);
 
-  const promptText = `아래 커밋 기록을 이력서용 bullet point 3-5개로 요약해.
+  const promptText = `아래 커밋 기록에서 이력서에 넣을만한 의미있는 작업들을 모두 추출해.
 
 규칙:
 - 설명 없이 바로 "-"로 시작
 - 각 항목에 [레포명] 포함
 - 기술스택 언급
 - 한국어
+- 사소한 수정(오타, 포맷팅 등)은 제외
+- 비슷한 작업은 하나로 통합
+- 개수 제한 없이 의미있는 작업은 전부 포함
+- "등", "..." 같은 생략 표현 사용 금지
 
 예시:
 - [exif-frame] EXIF 메타데이터 처리 기능 개선 (JavaScript, Canvas API)
@@ -594,26 +598,157 @@ ${commitsText}
   return await callClaude(claudePath, promptText, cwd);
 }
 
-async function generateFinalResume(claudePath, sections, cwd) {
-  const allSections = sections.map((s) => `## ${s.yearMonth}\n${s.content}`).join('\n\n');
+function groupSectionsByRepo(sections) {
+  const repoMap = new Map();
 
-  const promptText = `아래 월별 개발 활동을 기반으로 이력서를 작성해.
+  for (const section of sections) {
+    const lines = section.content.split('\n');
+    for (const line of lines) {
+      const match = line.match(/^-\s*\[([^\]]+)\]/);
+      if (match) {
+        const repoName = match[1];
+        if (!repoMap.has(repoName)) {
+          repoMap.set(repoName, []);
+        }
+        repoMap.get(repoName).push({
+          yearMonth: section.yearMonth,
+          line: line.trim()
+        });
+      }
+    }
+  }
 
-형식:
-# 기술 역량
-(사용한 기술스택을 카테고리별로 정리)
+  return repoMap;
+}
 
-# 프로젝트 경험
-([레포명]을 프로젝트 단위로 인식해서 ## 레포명 형태로 묶어서 성과 중심 정리)
+async function generateRepoSummary(claudePath, repoName, activities, cwd) {
+  const activitiesText = activities
+    .sort((a, b) => b.yearMonth.localeCompare(a.yearMonth))
+    .map((a) => `${a.yearMonth}: ${a.line}`)
+    .join('\n');
+
+  const dates = activities.map((a) => a.yearMonth).sort();
+  const startDate = dates[0];
+  const endDate = dates[dates.length - 1];
+
+  const promptText = `아래는 [${repoName}] 프로젝트의 활동 내역이야.
+이력서의 프로젝트 경험 섹션에 들어갈 내용으로 정리해줘.
+
+반드시 아래 템플릿 형식을 정확히 따라야 해:
+
+---
+## ${repoName}
+
+**한 줄 요약** (${startDate} ~ ${endDate})
+
+### 주요 성과
+- 성과 내용
+- 성과 내용
+
+### 기술 스택
+TypeScript, Node.js
+---
 
 규칙:
-- 코드블록(\`\`\`) 사용 금지
-- 바로 # 기술 역량 으로 시작
+- 위 템플릿 형식을 반드시 지켜
+- "한 줄 요약"은 프로젝트를 한 문장으로 설명 (예: "서버리스 백엔드 API 개발 및 운영")
+- "주요 성과"는 bullet point로 정리, 비슷한 작업은 통합
+- "기술 스택"은 쉼표로 구분된 한 줄로 작성
+- 의미있는 작업은 절대 생략하지 말고 전부 포함
+- "등", "..." 같은 생략 표현 사용 금지
+- 코드블록 사용 금지
 - 한국어
 
-${allSections}`;
+활동 내역:
+${activitiesText}
+
+출력:`;
 
   return await callClaude(claudePath, promptText, cwd);
+}
+
+async function generateTechStack(claudePath, repoSummaries, cwd) {
+  const promptText = `아래 프로젝트 경험들에서 사용된 기술스택을 추출해서 정리해줘.
+
+규칙:
+- "# 기술 역량" 헤더로 시작
+- 카테고리별로 그룹화 (언어, 프레임워크, 도구 등)
+- 모든 기술스택을 빠짐없이 전부 나열
+- "등", "..." 같은 생략 표현 사용 금지
+- 코드블록 사용 금지
+- 한국어
+
+프로젝트 경험:
+${repoSummaries}
+
+출력:`;
+
+  return await callClaude(claudePath, promptText, cwd);
+}
+
+async function generateFinalResume(claudePath, sections, cwd, outputDir) {
+  const repoMap = groupSectionsByRepo(sections);
+  const repos = [...repoMap.entries()];
+
+  if (repos.length === 0) {
+    throw new Error('레포별 활동을 추출할 수 없습니다');
+  }
+
+  const repoDir = path.join(outputDir, 'repos');
+  fs.mkdirSync(repoDir, { recursive: true });
+
+  console.log(`${COLORS.dim}${repos.length}개 레포 발견, 레포별 섹션 생성 중...${COLORS.reset}`);
+
+  let repoCompleted = 0;
+
+  const repoTasks = repos.map(([repoName, activities]) => async () => {
+    const safeRepoName = repoName.replace(/[/\\:*?"<>|]/g, '_');
+    const repoFile = path.join(repoDir, `${safeRepoName}.md`);
+
+    try {
+      const section = await generateRepoSummary(claudePath, repoName, activities, cwd);
+      fs.writeFileSync(repoFile, section);
+      repoCompleted++;
+      clearLine();
+      console.log(`${COLORS.green}✔${COLORS.reset} [${repoName}] 저장됨`);
+      process.stdout.write(`${COLORS.dim}[${repoCompleted}/${repos.length}] 레포 처리 중...${COLORS.reset}`);
+      return { repoName, content: section, file: repoFile };
+    } catch (error) {
+      repoCompleted++;
+      clearLine();
+      console.log(`${COLORS.red}✘${COLORS.reset} [${repoName}] 실패: ${error.message}`);
+      process.stdout.write(`${COLORS.dim}[${repoCompleted}/${repos.length}] 레포 처리 중...${COLORS.reset}`);
+      return null;
+    }
+  });
+
+  process.stdout.write(`${COLORS.dim}[0/${repos.length}] 레포 처리 중...${COLORS.reset}`);
+  const repoResults = await runWithConcurrency(repoTasks, CONCURRENCY_LIMIT);
+  const validRepos = repoResults.filter(Boolean);
+
+  clearLine();
+
+  if (validRepos.length === 0) {
+    throw new Error('레포 섹션 생성에 실패했습니다');
+  }
+
+  const allRepoSections = validRepos.map((r) => r.content).join('\n\n');
+
+  console.log(`${COLORS.dim}기술 역량 섹션 생성 중...${COLORS.reset}`);
+  let techStack = '';
+  try {
+    techStack = await generateTechStack(claudePath, allRepoSections, cwd);
+    const techFile = path.join(outputDir, 'tech-stack.md');
+    fs.writeFileSync(techFile, techStack);
+    console.log(`${COLORS.green}✔${COLORS.reset} 기술 역량 저장됨`);
+  } catch (error) {
+    console.log(`${COLORS.yellow}⚠${COLORS.reset} 기술 역량 생성 실패, 프로젝트 경험만 사용: ${error.message}`);
+  }
+
+  if (techStack) {
+    return `${techStack}\n\n# 프로젝트 경험\n\n${allRepoSections}`;
+  }
+  return `# 프로젝트 경험\n\n${allRepoSections}`;
 }
 
 async function generateResume(commitsFilePath = null) {
@@ -699,9 +834,78 @@ async function generateResume(commitsFilePath = null) {
   clearLine();
 
   console.log(`\n${COLORS.bold}최종 이력서 생성 중...${COLORS.reset}`);
+  console.log(`${COLORS.dim}temp 폴더: ${outputDir}${COLORS.reset}\n`);
 
   try {
-    const finalResume = await generateFinalResume(claudePath, sections, process.cwd());
+    const finalResume = await generateFinalResume(claudePath, sections, process.cwd(), outputDir);
+    const finalFile = path.join(process.cwd(), `resume-${timestamp}.md`);
+    fs.writeFileSync(finalFile, finalResume);
+
+    console.log(`\n${COLORS.bold}=== 완료 ===${COLORS.reset}`);
+    console.log(`최종 이력서: ${COLORS.underline}${finalFile}${COLORS.reset}\n`);
+  } catch (error) {
+    console.error(`${COLORS.red}✘ 최종 이력서 생성 실패:${COLORS.reset} ${error.message}`);
+    console.error(`${COLORS.dim}temp 폴더에 중간 결과가 저장되어 있습니다: ${outputDir}${COLORS.reset}\n`);
+  }
+}
+
+function getTempResumeDirs() {
+  const cwd = process.cwd();
+  const entries = fs.readdirSync(cwd);
+  return entries
+    .filter((entry) => entry.startsWith('.temp-resume-parts-'))
+    .map((entry) => ({
+      name: entry,
+      path: path.join(cwd, entry)
+    }))
+    .sort((a, b) => b.name.localeCompare(a.name));
+}
+
+async function regenerateFromTemp() {
+  console.log(`${COLORS.bold}=== temp 폴더에서 이력서 재생성 ===${COLORS.reset}\n`);
+
+  const claudePath = findClaudePath();
+  if (!claudePath) {
+    console.error(`${COLORS.red}✘ Claude CLI를 찾을 수 없습니다.${COLORS.reset}`);
+    return;
+  }
+
+  const tempDirs = getTempResumeDirs();
+  if (tempDirs.length === 0) {
+    console.error(`${COLORS.red}✘ .temp-resume-parts-* 폴더를 찾을 수 없습니다.${COLORS.reset}\n`);
+    return;
+  }
+
+  const choices = tempDirs.map((dir) => ({
+    name: dir.name,
+    value: dir
+  }));
+
+  const selectedDir = await select('temp 폴더 선택', choices);
+  const outputDir = selectedDir.path;
+
+  const monthFiles = fs.readdirSync(outputDir)
+    .filter((f) => f.match(/^\d{4}-\d{2}\.md$/))
+    .sort((a, b) => b.localeCompare(a));
+
+  if (monthFiles.length === 0) {
+    console.error(`${COLORS.red}✘ 월별 섹션 파일을 찾을 수 없습니다.${COLORS.reset}\n`);
+    return;
+  }
+
+  console.log(`${COLORS.green}✔${COLORS.reset} ${monthFiles.length}개의 월별 섹션 발견\n`);
+
+  const sections = monthFiles.map((file) => {
+    const yearMonth = file.replace('.md', '');
+    const content = fs.readFileSync(path.join(outputDir, file), 'utf-8');
+    return { yearMonth, content };
+  });
+
+  console.log(`${COLORS.bold}최종 이력서 생성 중...${COLORS.reset}\n`);
+
+  try {
+    const finalResume = await generateFinalResume(claudePath, sections, process.cwd(), outputDir);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const finalFile = path.join(process.cwd(), `resume-${timestamp}.md`);
     fs.writeFileSync(finalFile, finalResume);
 
@@ -719,7 +923,8 @@ async function main() {
   const menuChoices = [
     { name: '📥 커밋 수집하기', value: 'collect' },
     { name: '📝 이력서 생성하기', value: 'generate' },
-    { name: '🚀 수집 후 바로 이력서 생성', value: 'both' }
+    { name: '🚀 수집 후 바로 이력서 생성', value: 'both' },
+    { name: '🔄 temp 폴더에서 재생성', value: 'regenerate' }
   ];
 
   const mode = await select('원하는 작업을 선택하세요', menuChoices);
@@ -736,6 +941,8 @@ async function main() {
       console.log(`${COLORS.dim}이력서 생성을 시작합니다...${COLORS.reset}\n`);
       await generateResume(outputFile);
     }
+  } else if (mode === 'regenerate') {
+    await regenerateFromTemp();
   }
 
   process.exit(0);
