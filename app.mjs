@@ -184,6 +184,16 @@ function getOrgRepos(org) {
   });
 }
 
+function getOrgMembers(org) {
+  const result = execCommand(
+    `gh api /orgs/${org}/members --jq '.[] | "\\(.login)"'`
+  );
+  if (!result) {
+    return [];
+  }
+  return result.split('\n').filter(Boolean).sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+}
+
 function getUserEmail() {
   return execCommand('git config user.email') || '';
 }
@@ -250,14 +260,63 @@ async function collectCommits() {
 
   clearLine();
   process.stdout.write('GitHub 사용자 정보 확인 중...');
-  const username = getGitHubUser();
-  const userEmail = getUserEmail();
+  const myUsername = getGitHubUser();
+  const myEmail = getUserEmail();
   clearLine();
-  console.log(`${COLORS.green}✔${COLORS.reset} 사용자: ${COLORS.cyan}${username}${COLORS.reset} ${userEmail ? `(${userEmail})` : ''}\n`);
+  console.log(`${COLORS.green}✔${COLORS.reset} 로그인: ${COLORS.cyan}${myUsername}${COLORS.reset} ${myEmail ? `(${myEmail})` : ''}\n`);
 
-  const authors = [username];
-  if (userEmail) {
-    authors.push(userEmail);
+  clearLine();
+  process.stdout.write('조직 목록을 가져오는 중...');
+  const orgs = getUserOrganizations().sort((a, b) => a.localeCompare(b));
+  clearLine();
+  console.log(`${COLORS.green}✔${COLORS.reset} ${orgs.length}개의 조직 발견\n`);
+
+  const orgChoices = [
+    { name: `${myUsername} (개인 레포지토리)`, value: myUsername },
+    ...orgs.map((org) => ({ name: org, value: org }))
+  ];
+
+  const org = await select('조직 선택', orgChoices);
+
+  let targetUsername = myUsername;
+  let targetEmail = myEmail;
+  const isOrg = org !== myUsername;
+
+  if (isOrg) {
+    clearLine();
+    process.stdout.write(`${org} 멤버 목록을 가져오는 중...`);
+    const members = getOrgMembers(org);
+    clearLine();
+
+    if (members.length > 0) {
+      const otherMembers = members.filter((member) => member !== myUsername);
+
+      if (otherMembers.length > 0) {
+        console.log(`${COLORS.green}✔${COLORS.reset} ${members.length}명의 멤버 발견\n`);
+
+        const memberChoices = [
+          { name: `👤 ${myUsername} (나)`, value: myUsername },
+          ...otherMembers.map((member) => ({ name: member, value: member }))
+        ];
+
+        targetUsername = await select('커밋을 조회할 멤버 선택', memberChoices);
+
+        if (targetUsername !== myUsername) {
+          targetEmail = '';
+        }
+      } else {
+        console.log(`${COLORS.green}✔${COLORS.reset} 멤버 확인됨\n`);
+      }
+    } else {
+      console.log(`${COLORS.yellow}⚠${COLORS.reset} 멤버 목록을 가져올 수 없습니다 (권한 부족 또는 비공개 조직)\n`);
+    }
+  }
+
+  console.log(`${COLORS.green}✔${COLORS.reset} 조회 대상: ${COLORS.cyan}${targetUsername}${COLORS.reset}\n`);
+
+  const authors = [targetUsername];
+  if (targetEmail) {
+    authors.push(targetEmail);
   }
 
   console.log(`${COLORS.dim}예: old-username, old@email.com${COLORS.reset}`);
@@ -266,19 +325,6 @@ async function collectCommits() {
     extraAuthors.split(',').map((a) => a.trim()).filter(Boolean).forEach((a) => authors.push(a));
   }
   console.log(`${COLORS.green}✔${COLORS.reset} 검색 대상: ${authors.join(', ')}\n`);
-
-  clearLine();
-  process.stdout.write('조직 목록을 가져오는 중...');
-  const orgs = getUserOrganizations().sort((a, b) => a.localeCompare(b));
-  clearLine();
-  console.log(`${COLORS.green}✔${COLORS.reset} ${orgs.length}개의 조직 발견\n`);
-
-  const choices = [
-    { name: `${username} (개인 레포지토리)`, value: username },
-    ...orgs.map((org) => ({ name: org, value: org }))
-  ];
-
-  const org = await select('조직 선택', choices);
 
   clearLine();
   process.stdout.write(`${org}의 레포지토리 목록을 가져오는 중...`);
@@ -293,7 +339,8 @@ async function collectCommits() {
   console.log(`${COLORS.green}✔${COLORS.reset} ${repos.length}개의 레포지토리 발견\n`);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const outputFile = path.join(process.cwd(), `commits-${org}-${timestamp}.md`);
+  const filenameSuffix = targetUsername !== myUsername ? `-${targetUsername}` : '';
+  const outputFile = path.join(process.cwd(), `commits-${org}${filenameSuffix}-${timestamp}.md`);
 
   const tempDir = path.join(process.cwd(), `.temp-repos-${Date.now()}`);
   fs.mkdirSync(tempDir, { recursive: true });
@@ -301,7 +348,7 @@ async function collectCommits() {
   const allCommits = [];
 
   const writeHeader = () => {
-    fs.writeFileSync(outputFile, `# ${org} - ${username}의 커밋 기록\n\n`);
+    fs.writeFileSync(outputFile, `# ${org} - ${targetUsername}의 커밋 기록\n\n`);
     fs.appendFileSync(outputFile, `생성일시: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}\n\n`);
     fs.appendFileSync(outputFile, `| 일시 | 레포지토리 | 커밋 메시지 | 링크 |\n`);
     fs.appendFileSync(outputFile, `|------|------------|-------------|------|\n`);
